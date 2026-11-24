@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Відкриття Скрині з Картками</title>
+    <!-- Підключення Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Підключення Tone.js для генерації звукових ефектів без зовнішніх файлів -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Підключення шрифту Nunito / Inter для соковитого ігрового вигляду -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* Базові налаштування та анімації */
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        /* Динамічні фони станів */
+        .bg-chest-state {
+            background: radial-gradient(circle at 50% 45%, #ffffff 0%, #f3f4f8 100%);
+        }
+        .bg-card-blue {
+            background: radial-gradient(circle at 50% 40%, #1b2836 0%, #0f171e 100%);
+        }
+        .bg-card-orange {
+            background: radial-gradient(circle at 50% 40%, #ea580c 0%, #7c2d12 100%);
+        }
+        .bg-card-rainbow {
+            background: radial-gradient(circle at 50% 40%, rgba(15, 23, 42, 0.25) 0%, rgba(15, 23, 42, 0.65) 100%),
+                        linear-gradient(135deg, #ff3b30 0%, #ff9500 22%, #ffcc00 42%, #34c759 62%, #007aff 82%, #af52de 100%);
+        }
+        .bg-card-purple {
+            background: radial-gradient(circle at 50% 40%, #7e22ce 0%, #3b0764 100%);
+        }
+
+        /* Анімація погойдування скрині в очікуванні */
+        @keyframes chestIdle {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.03) rotate(-1.5deg); }
+            50% { transform: scale(1) rotate(0deg); }
+            75% { transform: scale(1.03) rotate(1.5deg); }
+        }
+        .animate-chest-idle {
+            animation: chestIdle 2.5s ease-in-out infinite;
+        }
+
+        /* Анімація трясіння скрині перед відкриттям */
+        @keyframes chestShake {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            15% { transform: scale(1.1) rotate(-6deg); }
+            30% { transform: scale(1.15) rotate(6deg); }
+            45% { transform: scale(1.2) rotate(-8deg); }
+            60% { transform: scale(1.25) rotate(8deg); }
+            75% { transform: scale(1.3) rotate(-4deg); }
+            90% { transform: scale(1.35) rotate(0deg); }
+        }
+        .animate-chest-shake {
+            animation: chestShake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+        }
+
+        /* Плавна анімація кришки скрині */
+        .chest-lid {
+            transform-origin: 50% 62%;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .chest-open .chest-lid {
+            transform: translateY(-48px) rotate(-14deg) scale(1.05);
+        }
+
+        /* 3D Картка та її перевертання */
+        .perspective-1000 {
+            perspective: 1200px;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.75s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+        }
+        .card-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 28px;
+        }
+        .card-back {
+            /* Чорна сорочка картки у стилі TikTok */
+            background: linear-gradient(145deg, #1f1f23 0%, #0a0a0c 100%);
+            border: 8px solid #2b2b30;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), inset 0 4px 15px rgba(255, 255, 255, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-front {
+            transform: rotateY(180deg);
+            background: #ffffff;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Анімація вильоту картки зі скрині */
+        @keyframes flyOut {
+            0% {
+                transform: translateY(180px) scale(0.15);
+                opacity: 0;
+            }
+            40% {
+                opacity: 1;
+            }
+            75% {
+                transform: translateY(-35px) scale(1.06);
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+        .animate-fly-out {
+            animation: flyOut 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* Пульсація іскорок навколо скрині та картки */
+        @keyframes sparklePulse {
+            0%, 100% { transform: scale(0.6) rotate(0deg); opacity: 0.4; }
+            50% { transform: scale(1.2) rotate(45deg); opacity: 1; }
+        }
+        .sparkle {
+            animation: sparklePulse 2s ease-in-out infinite;
+        }
+
+        /* Об'ємна ігрова кнопка (стиль Duolingo / TikTok Chest) */
+        .game-btn {
+            transition: transform 0.1s ease, filter 0.15s ease;
+        }
+        .game-btn:active {
+            transform: translateY(4px);
+        }
+        .btn-blue {
+            background-color: #1cb0f6;
+            box-shadow: 0 5px 0 #1899d6;
+            color: #ffffff;
+        }
+        .btn-white {
+            background-color: #ffffff;
+            box-shadow: 0 5px 0 #d1d5db;
+            color: #4b1d95;
+        }
+        .btn-gold {
+            background-color: #ffc800;
+            box-shadow: 0 5px 0 #e5a500;
+            color: #422006;
+        }
+
+        /* Плавна поява тексту */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up {
+            animation: fadeUp 0.4s ease-out forwards;
+        }
+
+        /* Світлові промені позаду відкритої скрині */
+        @keyframes spinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .sunburst {
+            animation: spinSlow 20s linear infinite;
+        }
+    </style>
+</head>
+<body id="appBody" class="bg-chest-state h-screen w-screen flex flex-col items-center justify-between p-6 relative">
+
+    <!-- Верхня панель з індикатором прогресу (картки) та кнопкою звуку -->
+    <div class="w-full max-w-md flex items-center justify-between z-30 pt-2">
+        <!-- Індикатор кількості карток у скрині -->
+        <div id="progressDots" class="flex items-center gap-2 opacity-0 transition-opacity duration-300">
+            <!-- Точки генеруються через JS -->
+        </div>
+
+        <!-- Кнопка увімкнення/вимкнення звуку -->
+        <button id="soundToggle" class="p-3 rounded-2xl bg-slate-900/10 hover:bg-slate-900/20 text-slate-800 backdrop-blur-sm transition active:scale-95" aria-label="Звук">
+            <svg id="soundOnIcon" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+            </svg>
+            <svg id="soundOffIcon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Центральна ігрова сцена -->
+    <main class="flex-1 w-full max-w-md flex flex-col items-center justify-center relative z-20">
+
+        <!-- Плашка нікнейму користувача TikTok зверху -->
+        <div id="userBadge" class="mb-4 px-4 py-2 rounded-full bg-slate-900/5 border border-slate-900/10 flex items-center gap-2.5 shadow-sm transition-all duration-300 cursor-pointer hover:bg-slate-900/10" title="Натисніть, щоб змінити нікнейм">
+            <!-- Міні-аватарка у стилі TikTok -->
+            <div class="w-7 h-7 rounded-full bg-[#0F0F13] flex items-center justify-center relative overflow-hidden shrink-0 ring-2 ring-[#25F4EE]">
+                <svg class="w-4 h-4 overflow-visible" viewBox="0 0 24 24" fill="none">
+                    <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#25F4EE" transform="translate(-1, -0.8)"/>
+                    <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FE2C55" transform="translate(1, 0.8)"/>
+                    <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FFFFFF"/>
+                </svg>
+            </div>
+            <!-- Нікнейм (можна редагувати прямо на екрані) -->
+            <span id="tiktokUsername" contenteditable="true" spellcheck="false" class="text-slate-900 font-extrabold text-base tracking-tight outline-none focus:underline">@lizzy_calmyy</span>
+            <!-- Синя галочка верифікації TikTok -->
+            <svg class="w-4 h-4 text-[#20D5EC] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z"/>
+            </svg>
+        </div>
+
+        <!-- Контейнер Скрині -->
+        <div id="chestWrapper" class="relative cursor-pointer flex items-center justify-center w-64 h-64 sm:w-72 sm:h-72 transition-all duration-500">
+            
+            <!-- Світіння позаду скрині при відкритті -->
+            <div id="chestGlow" class="absolute inset-0 bg-purple-400/35 rounded-full blur-3xl scale-0 transition-transform duration-500 pointer-events-none"></div>
+
+            <!-- Декоративні зірочки та неонові іскри TikTok навколо скрині -->
+            <svg class="sparkle absolute -top-2 left-6 w-7 h-7 text-[#25F4EE] pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z"/>
+            </svg>
+            <svg class="sparkle absolute top-10 -right-2 w-5 h-5 text-[#FE2C55] pointer-events-none" style="animation-delay: 0.6s;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z"/>
+            </svg>
+            <svg class="sparkle absolute bottom-6 -left-3 w-6 h-6 text-[#FFC800] pointer-events-none" style="animation-delay: 1.2s;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z"/>
+            </svg>
+            <svg class="sparkle absolute bottom-2 right-6 w-7 h-7 text-[#9333EA] pointer-events-none" style="animation-delay: 0.3s;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z"/>
+            </svg>
+
+            <!-- Векторна графіка справжнього TikTok Treasure Box (фіолетово-золотий корпус із 3D-об'ємом) -->
+            <svg id="chestSvg" class="w-full h-full animate-chest-idle drop-shadow-[0_22px_28px_rgba(88,28,135,0.28)] overflow-visible" viewBox="0 0 260 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <!-- Градієнти для об'ємного TikTok Treasure Box -->
+                    <linearGradient id="ttPurpleBody" x1="130" y1="64" x2="130" y2="212" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#9333EA"/>
+                        <stop offset="50%" stop-color="#6B21A8"/>
+                        <stop offset="100%" stop-color="#3B0764"/>
+                    </linearGradient>
+                    <linearGradient id="ttPurpleLid" x1="130" y1="64" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#C084FC"/>
+                        <stop offset="45%" stop-color="#7E22CE"/>
+                        <stop offset="100%" stop-color="#4C1D95"/>
+                    </linearGradient>
+                    <linearGradient id="ttGoldRim" x1="32" y1="64" x2="228" y2="212" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#FEF08A"/>
+                        <stop offset="35%" stop-color="#FACC15"/>
+                        <stop offset="75%" stop-color="#EAB308"/>
+                        <stop offset="100%" stop-color="#B45309"/>
+                    </linearGradient>
+                    <linearGradient id="ttGoldDark" x1="130" y1="130" x2="130" y2="212" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#F59E0B"/>
+                        <stop offset="100%" stop-color="#92400E"/>
+                    </linearGradient>
+                </defs>
+
+                <!-- Тінь під скринею на світлому фоні -->
+                <ellipse cx="130" cy="218" rx="76" ry="11" fill="#0F172A" opacity="0.12"/>
+
+                <!-- Внутрішнє магічне сяйво при відкритті -->
+                <ellipse id="innerLight" cx="130" cy="135" rx="88" ry="26" fill="#FEF9C3" opacity="0" class="transition-opacity duration-300"/>
+
+                <!-- Нижня частина (основа) скрині TikTok -->
+                <g class="chest-base">
+                    <!-- Фіолетовий корпус основи -->
+                    <path d="M44 132H216L206 196C204.5 205 197 212 188 212H72C63 212 55.5 205 54 196L44 132Z" fill="url(#ttPurpleBody)"/>
+                    <!-- Темна нижня грань для 3D-глибини -->
+                    <path d="M50 178H210L206 196C204.5 205 197 212 188 212H72C63 212 55.5 205 54 196L50 178Z" fill="#2E1065" opacity="0.75"/>
+                    
+                    <!-- Золоті куточки та металевий каркас основи -->
+                    <path d="M40 130H220V146H204V194H210V212H50V194H56V146H40V130Z" fill="url(#ttGoldRim)"/>
+                    <!-- Внутрішня фіолетова панель -->
+                    <rect x="68" y="146" width="124" height="48" rx="10" fill="url(#ttPurpleBody)"/>
+                    <!-- Декоративні вертикальні ребра та заклепки -->
+                    <rect x="92" y="146" width="10" height="48" fill="#4C1D95" opacity="0.6"/>
+                    <rect x="158" y="146" width="10" height="48" fill="#4C1D95" opacity="0.6"/>
+                    <circle cx="58" cy="138" r="3.5" fill="#FEF08A"/>
+                    <circle cx="202" cy="138" r="3.5" fill="#FEF08A"/>
+                    <circle cx="58" cy="203" r="3.5" fill="#D97706"/>
+                    <circle cx="202" cy="203" r="3.5" fill="#D97706"/>
+                    <!-- Верхній світлий блік на золотій рамці -->
+                    <rect x="44" y="132" width="172" height="4" rx="2" fill="#FEF9C3"/>
+                </g>
+
+                <!-- Кришка скрині TikTok -->
+                <g class="chest-lid">
+                    <!-- Фіолетовий об'ємний купол кришки -->
+                    <path d="M36 125C36 86 64 66 130 66C196 66 224 86 224 125H36Z" fill="url(#ttPurpleLid)"/>
+                    <!-- Світлий фіолетовий відблиск зверху купола -->
+                    <path d="M74 71C90 67 110 66 130 66C150 66 170 67 186 71L176 125H84L74 71Z" fill="#A855F7" opacity="0.45"/>
+                    
+                    <!-- Золоті дуги по боках і центру -->
+                    <path d="M32 122C32 80 62 62 130 62C198 62 228 80 228 122V134H32V122ZM56 120H92C94 92 105 78 130 78C155 78 166 92 168 120H204C202 92 182 78 130 78C78 78 58 92 56 120Z" fill="url(#ttGoldRim)"/>
+                    <!-- Центральна золота стяжка -->
+                    <path d="M112 63H148V130H112V63Z" fill="url(#ttGoldRim)"/>
+                    <!-- Бічні золоті обручі -->
+                    <path d="M55 74C42 86 35 102 34 124H56C57 103 65 89 78 79L55 74Z" fill="url(#ttGoldRim)"/>
+                    <path d="M205 74C218 86 225 102 226 124H204C203 103 195 89 182 79L205 74Z" fill="url(#ttGoldRim)"/>
+
+                    <!-- Світловий блік по верхній дузі кришки -->
+                    <path d="M70 70C86 65 108 63 130 63C152 63 174 65 190 70" stroke="#FEF9C3" stroke-width="4.5" stroke-linecap="round"/>
+
+                    <!-- Фірмовий замок-медальйон TikTok по центру -->
+                    <g transform="translate(130, 126)">
+                        <!-- Об'ємна тінь замка -->
+                        <rect x="-28" y="-24" width="56" height="56" rx="16" fill="#92400E" transform="translate(0, 5)"/>
+                        <!-- Золота корона/рамка замка -->
+                        <rect x="-28" y="-24" width="56" height="56" rx="16" fill="url(#ttGoldRim)"/>
+                        <!-- Внутрішня обводка -->
+                        <rect x="-23" y="-19" width="46" height="46" rx="13" fill="#FEF08A"/>
+                        <!-- Чорний глянсовий центр емблеми TikTok -->
+                        <rect x="-20" y="-16" width="40" height="40" rx="11" fill="#0F0F13"/>
+                        
+                        <!-- Логотип TikTok (бірюзовий, рожевий та білий шари зі зміщенням) -->
+                        <g transform="translate(-12, -10) scale(1.05)">
+                            <!-- Бірюзовий шар (Cyan) -->
+                            <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#25F4EE" transform="translate(-1.2, -1)"/>
+                            <!-- Рожевий шар (Magenta) -->
+                            <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FE2C55" transform="translate(1.2, 1)"/>
+                            <!-- Основний білий шар -->
+                            <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FFFFFF"/>
+                        </g>
+                    </g>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Сцена демонстрації картки (прихована до відкриття) -->
+        <div id="cardStage" class="hidden flex-col items-center justify-center w-full">
+            <!-- 3D Картка -->
+            <div id="cardContainer" class="perspective-1000 w-56 h-72 sm:w-64 sm:h-80 cursor-pointer mb-8">
+                <div id="cardInner" class="card-inner">
+                    <!-- Зворотна сторона картки (чорна з логотипом TikTok) -->
+                    <div class="card-face card-back">
+                        <div class="w-32 h-40 rounded-2xl bg-[#16161a] border border-white/10 flex items-center justify-center shadow-inner relative">
+                            <!-- Світлий блік на сорочці -->
+                            <div class="absolute top-3 left-3 w-8 h-3 bg-white/15 rounded-full -rotate-12"></div>
+                            <!-- Фірмовий логотип TikTok по центру картки -->
+                            <svg class="w-20 h-20 overflow-visible drop-shadow-lg" viewBox="0 0 24 24" fill="none">
+                                <!-- Бірюзовий шар (Cyan) -->
+                                <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#25F4EE" transform="translate(-1.2, -1)"/>
+                                <!-- Рожевий шар (Magenta) -->
+                                <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FE2C55" transform="translate(1.2, 1)"/>
+                                <!-- Основний білий шар -->
+                                <path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6 0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64 0 3.33 2.76 5.7 5.69 5.7 3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48z" fill="#FFFFFF"/>
+                            </svg>
+                        </div>
+                        <!-- Іскорка на куті картки -->
+                        <svg class="absolute -top-3 -right-3 w-9 h-9 text-white drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Лицьова сторона картки (завантажується ваша картинка) -->
+                    <div class="card-face card-front relative">
+                        <img id="cardImage" src="" alt="Картка нагороди" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400x520/1cb0f6/ffffff?text=Reward+Card'">
+                        <!-- Блік скла поверх картки -->
+                        <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-white/30 pointer-events-none"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Опис нагороди під карткою -->
+            <div id="cardTextContainer" class="text-center px-4 min-h-[84px] flex flex-col items-center justify-center opacity-0 transition-opacity duration-300">
+                <p id="cardDescription" class="text-white text-2xl sm:text-3xl font-black uppercase tracking-wide leading-tight max-w-sm drop-shadow-md">
+                    <!-- Текст опису картки -->
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Нижня панель керування -->
+    <footer class="w-full max-w-md pb-4 z-30 flex flex-col items-center">
+        <!-- Підказка натиснути на скриню -->
+        <p id="tapPrompt" class="text-slate-800 text-xl font-extrabold tracking-wide animate-pulse mb-4">
+            Tap to open!
+        </p>
+
+        <!-- Кнопка CONTINUE / ВІДКРИТИ ЗНОВУ -->
+        <button id="continueBtn" class="hidden game-btn btn-blue w-full py-4 rounded-2xl font-black text-lg tracking-wider uppercase shadow-lg">
+            CONTINUE
+        </button>
+    </footer>
+
+    <!-- Полотно для конфетті та частинок -->
+    <canvas id="confettiCanvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+
+    <script>
+        /**
+         * Конфігурація карток, наданих користувачем.
+         * Назви стилізовані під справжні легендарні подарунки TikTok LIVE (Gifts).
+         */
+        const CARDS_DATA = [
+            {
+                id: 1,
+                image: "https://i.postimg.cc/vB2zXzn0/1c.png",
+                descriptionHtml: '<span class="block text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/70 mb-1">TikTok LIVE Gift</span>TIKTOK <span class="text-[#25F4EE]">UNIVERSE</span>',
+                bgClass: "bg-card-blue",
+                btnClass: "btn-blue"
+            },
+            {
+                id: 2,
+                image: "https://i.postimg.cc/76tVXVzB/2c.png",
+                descriptionHtml: '<span class="block text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/70 mb-1">TikTok LIVE Gift</span>KING OF <span class="text-[#fdba74]">LION</span>',
+                bgClass: "bg-card-orange",
+                btnClass: "btn-white"
+            },
+            {
+                id: 3,
+                image: "https://i.postimg.cc/j53XvXf6/3c.png",
+                descriptionHtml: '<span class="block text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/80 mb-1">TikTok LIVE Gift</span>GOLDEN <span class="text-[#fef08a]">FALCON</span>',
+                bgClass: "bg-card-rainbow",
+                btnClass: "btn-gold"
+            },
+            {
+                id: 4,
+                image: "https://i.postimg.cc/XJ18x85C/6c.png",
+                descriptionHtml: '<span class="block text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/70 mb-1">TikTok LIVE Gift</span><span class="text-[#d8b4fe]">INTERSTELLAR</span> GIFT',
+                bgClass: "bg-card-purple",
+                btnClass: "btn-white"
+            }
+        ];
+
+        // Стан додатку
+        let currentState = 'IDLE'; // 'IDLE' | 'OPENING' | 'CARD_VIEW' | 'FINISHED'
+        let currentCardIndex = 0;
+        let isSoundEnabled = true;
+        let audioInitialized = false;
+
+        // Елементи DOM
+    const appBody = document.getElementById('appBody');
+    const userBadge = document.getElementById('userBadge');
+    const tiktokUsername = document.getElementById('tiktokUsername');
+    const chestWrapper = document.getElementById('chestWrapper');
+        const chestSvg = document.getElementById('chestSvg');
+        const chestGlow = document.getElementById('chestGlow');
+        const innerLight = document.getElementById('innerLight');
+        const tapPrompt = document.getElementById('tapPrompt');
+        const cardStage = document.getElementById('cardStage');
+        const cardContainer = document.getElementById('cardContainer');
+        const cardInner = document.getElementById('cardInner');
+        const cardImage = document.getElementById('cardImage');
+        const cardTextContainer = document.getElementById('cardTextContainer');
+        const cardDescription = document.getElementById('cardDescription');
+        const continueBtn = document.getElementById('continueBtn');
+        const progressDots = document.getElementById('progressDots');
+        const soundToggle = document.getElementById('soundToggle');
+        const soundOnIcon = document.getElementById('soundOnIcon');
+        const soundOffIcon = document.getElementById('soundOffIcon');
+
+        // Попереднє завантаження зображень карток, щоб при перевертанні не було затримок
+        function preloadImages() {
+            CARDS_DATA.forEach(card => {
+                const img = new Image();
+                img.src = card.image;
+            });
+        }
+
+        // Ініціалізація звукового синтезатора Tone.js
+        let synth, polySynth;
+        async function initAudio() {
+            if (audioInitialized) return;
+            try {
+                await Tone.start();
+                synth = new Tone.Synth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.4 }
+                }).toDestination();
+
+                polySynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.02, decay: 0.3, sustain: 0.2, release: 0.8 }
+                }).toDestination();
+                audioInitialized = true;
+            } catch (e) {
+                console.warn("Аудіо не вдалося ініціалізувати:", e);
+            }
+        }
+
+        // Звукові ефекти
+        function playSound(type) {
+            if (!isSoundEnabled || !audioInitialized) return;
+            const now = Tone.now();
+            try {
+                if (type === 'shake') {
+                    synth.triggerAttackRelease("C4", "16n", now);
+                    synth.triggerAttackRelease("E4", "16n", now + 0.1);
+                    synth.triggerAttackRelease("G4", "16n", now + 0.2);
+                } else if (type === 'open') {
+                    // Фанфари відкриття скрині
+                    polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+                    polySynth.triggerAttackRelease(["F4", "A4", "C5", "F5"], "2n", now + 0.25);
+                } else if (type === 'flip') {
+                    // Свіст та дзвін перевертання картки
+                    synth.triggerAttackRelease("G5", "16n", now);
+                    synth.triggerAttackRelease("C6", "8n", now + 0.08);
+                } else if (type === 'next') {
+                    synth.triggerAttackRelease("E5", "16n", now);
+                }
+            } catch (e) {
+                // Ігноруємо помилки таймінгу аудіо
+            }
+        }
+
+        // Перемикач звуку
+        soundToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            isSoundEnabled = !isSoundEnabled;
+            soundOnIcon.classList.toggle('hidden', !isSoundEnabled);
+            soundOffIcon.classList.toggle('hidden', isSoundEnabled);
+        });
+
+        // Створення індикаторів прогресу (крапок зверху)
+        function renderProgressDots() {
+            progressDots.innerHTML = '';
+            CARDS_DATA.forEach((_, idx) => {
+                const dot = document.createElement('div');
+                dot.className = `h-2.5 rounded-full transition-all duration-300 ${
+                    idx === currentCardIndex 
+                        ? 'w-8 bg-white' 
+                        : idx < currentCardIndex 
+                            ? 'w-2.5 bg-white/80' 
+                            : 'w-2.5 bg-white/30'
+                }`;
+                progressDots.appendChild(dot);
+            });
+        }
+
+        // Запуск процесу відкриття скрині
+        async function openChest() {
+            if (currentState !== 'IDLE') return;
+            currentState = 'OPENING';
+
+            await initAudio();
+            playSound('shake');
+
+            // Ховаємо підказку та заголовок
+            // Ховаємо підказку
+            tapPrompt.classList.add('opacity-0');
+            userBadge.classList.add('opacity-0', 'pointer-events-none');
+
+            // Запускаємо анімацію трясіння
+            chestSvg.classList.remove('animate-chest-idle');
+            chestSvg.classList.add('animate-chest-shake');
+
+            // Через 550мс відкриваємо кришку та випускаємо першу картку
+            setTimeout(() => {
+                playSound('open');
+                chestSvg.classList.remove('animate-chest-shake');
+                chestSvg.classList.add('chest-open');
+                chestGlow.classList.remove('scale-0');
+                chestGlow.classList.add('scale-150');
+                innerLight.setAttribute('opacity', '1');
+
+                // Вибух конфетті
+                spawnConfetti(60);
+
+                // Через 450мс переходимо до показу картки
+                setTimeout(() => {
+                    currentCardIndex = 0;
+                    showCard(currentCardIndex, true);
+                }, 450);
+            }, 550);
+        }
+
+        // Показ та анімація вильоту конкретної картки
+        function showCard(index, isFirstFromChest = false) {
+            currentState = 'CARD_VIEW';
+            const cardData = CARDS_DATA[index];
+
+            // Оновлюємо індикатори
+            progressDots.classList.remove('opacity-0');
+            renderProgressDots();
+
+            // Ховаємо текст та кнопку на час перевертання
+            cardTextContainer.classList.add('opacity-0');
+            continueBtn.classList.add('hidden');
+
+            // Скидаємо картку на зелену сорочку без анімації перевороту
+            cardInner.style.transition = 'none';
+            cardInner.classList.remove('card-flipped');
+            
+            // Встановлюємо нове зображення та опис
+            cardImage.src = cardData.image;
+            cardDescription.innerHTML = cardData.descriptionHtml;
+
+            // Налаштовуємо кнопку
+            continueBtn.className = `game-btn ${cardData.btnClass} w-full py-4 rounded-2xl font-black text-lg tracking-wider uppercase shadow-lg animate-fade-up`;
+            continueBtn.textContent = index === CARDS_DATA.length - 1 ? 'FINISH' : 'CONTINUE';
+
+            if (isFirstFromChest) {
+                // Зміщуємо скриню вниз і зменшуємо її, як на переході у відео
+                chestWrapper.style.transform = 'translateY(170px) scale(0.65)';
+                chestWrapper.style.opacity = '0.35';
+            }
+
+            // Показуємо сцену картки та запускаємо виліт
+            cardStage.classList.remove('hidden');
+            cardStage.classList.add('flex');
+
+            cardContainer.classList.remove('animate-fly-out');
+            void cardContainer.offsetWidth; // Примусовий reflow для перезапуску анімації
+            cardContainer.classList.add('animate-fly-out');
+
+            // Через 450мс перевертаємо картку лицьовою стороною та змінюємо фон
+            setTimeout(() => {
+                // Повертаємо плавний перехід для 3D-перевороту
+                cardInner.style.transition = 'transform 0.75s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                cardInner.classList.add('card-flipped');
+                // Змінюємо фон екрану під колір картки та оновлюємо кнопку звуку під темний фон
+                appBody.className = `${cardData.bgClass} h-screen w-screen flex flex-col items-center justify-between p-6 relative`;
+                soundToggle.className = "p-3 rounded-2xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm transition active:scale-95";
+
+                // Повністю ховаємо скриню на фоні картки
+                chestWrapper.classList.add('hidden');
+
+                // Невелике конфетті при відкритті картки
+                spawnConfetti(35);
+
+                // Показуємо опис та кнопку CONTINUE
+                setTimeout(() => {
+                    cardTextContainer.classList.remove('opacity-0');
+                    continueBtn.classList.remove('hidden');
+                }, 300);
+            }, 450);
+        }
+
+        // Обробка натискання на кнопку CONTINUE
+        continueBtn.addEventListener('click', () => {
+            if (currentState !== 'CARD_VIEW') return;
+            playSound('next');
+
+            if (currentCardIndex < CARDS_DATA.length - 1) {
+                currentCardIndex++;
+                showCard(currentCardIndex, false);
+            } else {
+                resetChest();
+            }
+        });
+
+        // Повернення до початкової закритої скрині для повторного відкриття
+        function resetChest() {
+            currentState = 'IDLE';
+            currentCardIndex = 0;
+
+            // Повертаємо світлий білий фон та темну іконку звуку
+            appBody.className = 'bg-chest-state h-screen w-screen flex flex-col items-center justify-between p-6 relative';
+            soundToggle.className = "p-3 rounded-2xl bg-slate-900/10 hover:bg-slate-900/20 text-slate-800 backdrop-blur-sm transition active:scale-95";
+
+            // Ховаємо картку та прогрес
+            cardStage.classList.add('hidden');
+            cardStage.classList.remove('flex');
+            continueBtn.classList.add('hidden');
+            progressDots.classList.add('opacity-0');
+
+            // Відновлюємо скриню в центрі
+            chestWrapper.classList.remove('hidden');
+            chestWrapper.style.transform = '';
+            chestWrapper.style.opacity = '1';
+
+            chestSvg.classList.remove('chest-open');
+            chestSvg.classList.add('animate-chest-idle');
+            chestGlow.classList.remove('scale-150');
+            chestGlow.classList.add('scale-0');
+            innerLight.setAttribute('opacity', '0');
+
+            // Повертаємо підказку
+            tapPrompt.classList.remove('opacity-0');
+            userBadge.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        // Зупиняємо вспливання кліку при редагуванні нікнейму та прибираємо переноси рядків
+        userBadge.addEventListener('click', (e) => {
+            e.stopPropagation();
+            tiktokUsername.focus();
+        });
+        tiktokUsername.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                tiktokUsername.blur();
+            }
+        });
+        tiktokUsername.addEventListener('blur', () => {
+            let val = tiktokUsername.textContent.trim();
+            if (!val) val = '@lizzy_calmyy';
+            else if (!val.startsWith('@')) val = '@' + val;
+            tiktokUsername.textContent = val;
+        });
+
+        // Дозволяємо клікати по самій картці для легкого 3D-нахилу (інтерактивність)
+        cardContainer.addEventListener('click', () => {
+            if (currentState === 'CARD_VIEW') {
+                cardContainer.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    cardContainer.style.transform = 'scale(1)';
+                }, 150);
+            }
+        });
+
+        // Клік по скрині або всій сцені в режимі очікування
+        chestWrapper.addEventListener('click', openChest);
+        tapPrompt.addEventListener('click', openChest);
+
+        /**
+         * Система частинок (Конфетті та блискітки) на HTML5 Canvas
+         */
+        const canvas = document.getElementById('confettiCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const CONFETTI_COLORS = ['#FFD426', '#FFFFFF', '#38BDF8', '#C084FC', '#4ADE80', '#FB7185'];
+
+        function spawnConfetti(count) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 4 + Math.random() * 10;
+                particles.push({
+                    x: centerX,
+                    y: centerY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 4,
+                    size: 5 + Math.random() * 7,
+                    color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+                    rotation: Math.random() * 360,
+                    vRot: (Math.random() - 0.5) * 12,
+                    alpha: 1,
+                    shape: Math.random() > 0.5 ? 'rect' : 'circle'
+                });
+            }
+        }
+
+        function animateConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.28; // гравітація
+                p.vx *= 0.98; // опір повітря
+                p.rotation += p.vRot;
+                p.alpha -= 0.015;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.translate(p.x, p.y);
+                ctx.rotate((p.rotation * Math.PI) / 180);
+                ctx.fillStyle = p.color;
+
+                if (p.shape === 'rect') {
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            requestAnimationFrame(animateConfetti);
+        }
+
+        // Ініціалізація при завантаженні сторінки
+        window.onload = function() {
+            preloadImages();
+            animateConfetti();
+        };
+    </script>
+</body>
+</html>
